@@ -22,10 +22,11 @@ Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
 #define HARD 1
 #define SOFT 0
 
-const int DEBUG = 0;
+const int DEBUG = 1;
 int timeOutEnable = 0;
 unsigned int reverseTimeOut = 0;
 unsigned int forwardTimeOut = 0;
+int fwTOFlag = 0;
     
 /*
 ***************************
@@ -36,7 +37,7 @@ unsigned int forwardTimeOut = 0;
 void motorRight(int motorSpeed, int motorDirection);
 void motorLeft(int motorSpeed, int motorDirection);
 int spin(int spinSpeed, int spinDirection, int spinDuration); // spinDuration == ms
-long sonar(void);
+unsigned long sonar(void);
 
 /*
 ***************************
@@ -53,14 +54,14 @@ void setup() {
   pinMode(SONAR_TRIG,  OUTPUT);
   pinMode(SONAR_ECHO,  INPUT);
   digitalWrite(SONAR_VCC, HIGH);
-  Serial.begin(9600);
+  if(DEBUG)Serial.begin(9600);
   
   /* Initialise the Compas sensor */
   if (!mag.begin())
   {
     /* There was a problem detecting the HMC5883 ... check your connections */
     Serial.println("Ooops, no HMC5883 detected ... Check your wiring!");
-    while (1);
+    //while (1);
   }
   
 }
@@ -87,12 +88,12 @@ void loop() {
   float headingDegrees = heading * 180 / M_PI;
   
   /* sonar */
-  long distance = sonar();
+  unsigned long distance = sonar();
   
-//  if(DEBUG)Serial.print("Distance: ");
-//  if(DEBUG)Serial.print(distance);
-//  if(DEBUG)Serial.print(" cm");
-//  if(DEBUG)Serial.print("\n");
+  if(DEBUG)Serial.print("Distance: ");
+  if(DEBUG)Serial.print(distance);
+  if(DEBUG)Serial.print(" cm");
+  if(DEBUG)Serial.print("\n");
 //  if(DEBUG)Serial.print("timeOut: ");
 //  if(DEBUG)Serial.print(timeOut);
 //  if(DEBUG)Serial.print("\n");
@@ -108,14 +109,17 @@ void loop() {
 //  if(DEBUG)Serial.print("Heading (degrees): ");
 //  if(DEBUG)Serial.print(headingDegrees);
 //  if(DEBUG)Serial.print("\n");
-  
+  if(DEBUG)Serial.print("forwardTimeOut: ");
+  if(DEBUG)Serial.print(forwardTimeOut);
+  if(DEBUG)Serial.print("\n");
+    
   if(distance < 40) {
     forwardTimeOut = 0;    // reset forward timer
     timeOutEnable = 1;     // enable reverse timeout
     motorBreak(SOFT);      // softly break
     int time = millis();   // initialize time
     int cTime = time;
-    while(cTime < time + 350) {
+    while(cTime < time + 250) {
 //      if(DEBUG)Serial.print("REVERSE\n");
       motorRight(150, REVERSE);
       motorLeft(70  , REVERSE);
@@ -129,15 +133,20 @@ void loop() {
     reverseTimeOut = 0;
     motorRight(255, FORWARD);
     motorLeft(255 , FORWARD);
+    
+    /* forward timeout */
     forwardTimeOut++;
   }
   
-  if(timeOutEnable == 1 && reverseTimeOut > 4)
+  if(timeOutEnable == 1 && reverseTimeOut > 4) {
+//    if(DEBUG)Serial.print("SPIN FOR REVERSE TIMEOUT\n");
     reverseTimeOut = spin(255, LEFT, 500);
+  }
   
-  if(forwardTimeOut > 400)
+  if(forwardTimeOut > 400) {
+    if(DEBUG)Serial.print("SPIN FOR FORWARD TIMEOUT\n");
     forwardTimeOut = spin(240, RIGHT, 400);
-
+  }
 }
 
 /*
@@ -201,9 +210,9 @@ int spin(int spinSpeed, int spinDirection, int spinDuration) {
     return 0;
 }
 
-long sonar(void) {
+unsigned long sonar(void) {
 
-  long duration, distance;
+  unsigned long duration, distance;
   digitalWrite(SONAR_TRIG, LOW);
   delayMicroseconds(2);
   digitalWrite(SONAR_TRIG, HIGH);
@@ -211,6 +220,13 @@ long sonar(void) {
   digitalWrite(SONAR_TRIG, LOW);
   duration = pulseIn(SONAR_ECHO, HIGH);
   distance = (duration/2) / 29.1;
+
+//  if(DEBUG)Serial.print("SONAR duration: ");
+//  if(DEBUG)Serial.print(duration);
+//  if(DEBUG)Serial.print("\n");
+//  if(DEBUG)Serial.print("SONAR distance: ");
+//  if(DEBUG)Serial.print(distance);
+//  if(DEBUG)Serial.print("\n");
 
   return distance;
 }
